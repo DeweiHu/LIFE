@@ -24,49 +24,51 @@ idx : which frame to pick
 '''
 def PickFrame(volume,FrameNum,idx):
     dim = volume.shape
-    opt = np.zeros([int(dim[0]/FrameNum),dim[1],dim[2]],dtype=np.float32)
-    for i in range(dim[0]):
+    opt = np.zeros([int(dim[2]/FrameNum),dim[0],dim[1]],dtype=np.float32)
+    for i in range(dim[2]):
         if i % FrameNum == idx:
-            opt[int(i/FrameNum),:,:] = volume[i,:,:]
+            opt[int(i/FrameNum),:,:] = volume[:,:,i]
     return opt
 
-root = '/sdb/Data/Input/Human/'
-FrameNum = 5
-
-V_list = []
-for file in os.listdir(root):
-    if file.startswith('Retina2_Fovea') and file.endswith('.tif'):
-        V_list.append(file)
-V_list.sort()
+def Rotate(img):
+    opt = np.fliplr(util.rot(img,'ccw'))
+    return opt 
 
 #%%
-raw = util.ImageRescale(io.imread(root+V_list[0]),[0,255])
-V = np.zeros([FrameNum,500,1024,500],dtype=np.float32)
+root = '/home/hud4/Desktop/20-summer/'
+V = np.zeros([5,500,440,500],dtype=np.float32)
+data = util.nii_loader(root+'Retina2 Fovea_SNR 101_reg.nii')
+
+for i in range(5):
+    V[i,:,:,:] = PickFrame(data,5,i)
+
+V_var = np.var(V,axis=0)
+util.nii_saver(Rotate(V_var),root,'var.nii.gz')
+
+#%%
+data = util.nii_loader(root+'PMFN_101{1}.nii.gz')
+V_var = np.var(data[:,:,:440,:],axis=0)
+util.nii_saver(Rotate(V_var),root,'var_dn.nii.gz')
+
+#%%
+
+FrameNum = 5
+
+raw = util.nii_loader(root+'Retina2_Fovea_SNR_101_2.nii')
+V = np.zeros([FrameNum,500,560,736],dtype=np.float32)
 
 # re-arrange
 for idx in range(FrameNum):
     V[idx,:,:,:] = PickFrame(raw,FrameNum,idx)
 
 # Frame-registration
-for slc in range(500):
-    fix = np.ascontiguousarray(V[0,slc,:,:])
-    for idx in range(FrameNum):
-        mov = np.ascontiguousarray(V[idx,slc,:,:])
-        reg = MC.MotionCorrect(fix,mov)
-        V[idx,slc,:,:] = reg
+#for slc in range(500):
+#    fix = np.ascontiguousarray(V[0,slc,:,:])
+#    for idx in range(FrameNum):
+#        mov = np.ascontiguousarray(V[idx,slc,:,:])
+#        reg = MC.MotionCorrect(fix,mov)
+#        V[idx,slc,:,:] = reg
 
-# crop
-#util.nii_saver(V[0,:,:,:],'/home/hud4/Desktop/','101_fovea.nii.gz')
-V = V[:,:,150:150+512,:]
-
-#%% speckle variance
-slc = 158
-im = V[:,slc,:,:]
-#util.nii_saver(im,'/home/hud4/Desktop/','slc158.nii.gz')
-
-var_map = np.mean(np.square(im-np.mean(im,axis=0)),axis=0)
-
-plt.figure(figsize=(10,10))
-plt.imshow(var_map)
-plt.axis('off')
-plt.show()
+util.nii_saver(util.ImageRescale(V[0,:,:,:],[0,255]),'/home/hud4/Desktop/','raw_slc0.nii.gz')
+V_var = np.var(V,axis=0)
+util.nii_saver(Rotate(V_var),root,'var_server.nii.gz')

@@ -79,9 +79,10 @@ class R2U_Net(nn.Module):
     def __init__(self, nch_enc, t=2):
         super(R2U_Net,self).__init__()
         
-        # mark the current channel number (assume input_channel=1)
-        self.ch = 1
+        # (assume input_channel=1)
+        self.nch_in = 1
         self.nch_enc = nch_enc
+        self.nch_aug = (self.nch_in,)+self.nch_enc
         
         # module list
         encoder = []
@@ -91,13 +92,14 @@ class R2U_Net(nn.Module):
         
         for i in range(len(self.nch_enc)):
             # encoder & downsample
-            encoder.append(RR_block(self.ch,self.nch_enc[i]))
+            encoder.append(RR_block(self.nch_aug[i],self.nch_aug[i+1]))
             trans_down.append(self.trans_down(self.nch_enc[i],self.nch_enc[i]))
             # decoder & upsample
             trans_up.append(self.trans_up(self.nch_enc[-1-i],self.nch_enc[-1-i]))
-            decoder.append(RR_block(self.nch_enc[-1-i]*2,self.nch_enc[-2-i]))
-            # update the current channel number
-            self.ch = self.nch_enc[i]
+            if i == len(self.nch_enc)-1:
+                decoder.append(RR_block(self.nch_aug[-1-i]*2,1))
+            else:
+                decoder.append(RR_block(self.nch_aug[-1-i]*2,self.nch_aug[-2-i]))
         
         self.encoder = nn.ModuleList(encoder)
         self.decoder = nn.ModuleList(decoder)
@@ -150,9 +152,10 @@ class res_UNet(nn.Module):
     def __init__(self, nch_enc):
         super(res_UNet,self).__init__()
         
-        # mark the current channel number (assume input_channel=1)
-        self.ch = 1
+        # (assume input_channel=1)
+        self.nch_in = 1
         self.nch_enc = nch_enc
+        self.nch_aug = (self.nch_in,)+self.nch_enc
         
         # module list
         encoder = []
@@ -162,13 +165,14 @@ class res_UNet(nn.Module):
         
         for i in range(len(self.nch_enc)):
             # encoder & downsample
-            encoder.append(Residual_block(self.ch,self.nch_enc[i]))
+            encoder.append(Residual_block(self.nch_aug[i],self.nch_aug[i+1]))
             trans_down.append(self.trans_down(self.nch_enc[i],self.nch_enc[i]))
             # decoder & upsample
             trans_up.append(self.trans_up(self.nch_enc[-1-i],self.nch_enc[-1-i]))
-            decoder.append(Residual_block(self.nch_enc[-1-i]*2,self.nch_enc[-2-i]))
-            # update the current channel number
-            self.ch = self.nch_enc[i]
+            if i == len(self.nch_enc)-1:
+                decoder.append(Residual_block(self.nch_aug[-1-i]*2,1))
+            else:
+                decoder.append(Residual_block(self.nch_aug[-1-i]*2,self.nch_aug[-2-i]))
         
         self.encoder = nn.ModuleList(encoder)
         self.decoder = nn.ModuleList(decoder)
@@ -219,7 +223,8 @@ class res_UNet(nn.Module):
                 
 #%% VAE
 class VAE(nn.Module):
-    def __init__(self, seg_enc, t=2, syn_enc):
+    def __init__(self, seg_enc, syn_enc, t=2):
+        super(VAE,self).__init__()
         self.seg_enc = seg_enc
         self.t = t
         self.syn_enc = syn_enc
@@ -231,7 +236,7 @@ class VAE(nn.Module):
         # Encoder: Seg_Net, Decoder: Syn_Net
         self.Seg_Net = R2U_Net(self.seg_enc,self.t)
         self.Syn_Net = res_UNet(self.syn_enc)
-    
+        
     def reparameterize(self, mu, log_var):
         std = torch.exp(0.5*log_var)
         eps = torch.randn_like(std)
@@ -252,3 +257,5 @@ class VAE(nn.Module):
         Syn_opt = self.Syn_Net(z)
         
         return Seg_opt, Syn_opt
+        
+    

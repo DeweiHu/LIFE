@@ -37,9 +37,9 @@ def get_train_data(dataroot):
             x = util.ImageRescale(vol_x[:,j,:],[0,255])
             y = util.ImageRescale(vol_y[:,j,:],[0,1])
             train_data = train_data + ((x[:msk[0],:msk[1]],y[:msk[0],:msk[1]]),
-                                       (x[:msk[0],W-msk[1]:],y[:msk[0],W-msk[1]]),
+                                       (x[:msk[0],W-msk[1]:],y[:msk[0],W-msk[1]:]),
                                        (x[H-msk[0]:,:msk[1]],y[H-msk[0]:,:msk[1]]),
-                                       (x[H-msk[0]:,W-msk[1]:],y[H-msk[0]:,W-msk[1]]))
+                                       (x[H-msk[0]:,W-msk[1]:],y[H-msk[0]:,W-msk[1]:]))
     return train_data
             
 train_data = get_train_data(dataroot)

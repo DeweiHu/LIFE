@@ -83,6 +83,7 @@ class R2U_Net(nn.Module):
         self.nch_in = 1
         self.nch_enc = nch_enc
         self.nch_aug = (self.nch_in,)+self.nch_enc
+        self.sigmoid = nn.Sigmoid()
         
         # module list
         encoder = []
@@ -103,15 +104,15 @@ class R2U_Net(nn.Module):
         
         self.encoder = nn.ModuleList(encoder)
         self.decoder = nn.ModuleList(decoder)
-        self.trans_down = nn.ModuleList(trans_down)
-        self.trans_up = nn.ModuleList(trans_up)
+        self.td = nn.ModuleList(trans_down)
+        self.tu = nn.ModuleList(trans_up)
     
     def forward(self, x):
         cats = []
         # encoder
         for i in range(len(self.nch_enc)):
             layer_opt = self.encoder[i](x)
-            x = self.trans_down[i](layer_opt)
+            x = self.td[i](layer_opt)
             cats.append(layer_opt)
         
         # bottom layer
@@ -119,11 +120,11 @@ class R2U_Net(nn.Module):
         
         # decoder
         for i in range(len(self.nch_enc)):
-            x = self.trans_up[i](layer_opt)
+            x = self.tu[i](layer_opt)
             x = torch.cat([x,cats[-1-i]],dim=1)
             layer_opt = self.decoder[i](x)
 
-        y_pred = layer_opt
+        y_pred = self.sigmoid(layer_opt)
         return y_pred
             
     def trans_down(self, nch_in, nch_out):
@@ -176,15 +177,15 @@ class res_UNet(nn.Module):
         
         self.encoder = nn.ModuleList(encoder)
         self.decoder = nn.ModuleList(decoder)
-        self.trans_down = nn.ModuleList(trans_down)
-        self.trans_up = nn.ModuleList(trans_up)
+        self.td = nn.ModuleList(trans_down)
+        self.tu = nn.ModuleList(trans_up)
     
     def forward(self, x):
         cats = []
         # encoder
         for i in range(len(self.nch_enc)):
             layer_opt = self.encoder[i](x)
-            x = self.trans_down[i](layer_opt)
+            x = self.td[i](layer_opt)
             cats.append(layer_opt)
         
         # bottom layer
@@ -192,7 +193,7 @@ class res_UNet(nn.Module):
         
         # decoder
         for i in range(len(self.nch_enc)):
-            x = self.trans_up[i](layer_opt)
+            x = self.tu[i](layer_opt)
             x = torch.cat([x,cats[-1-i]],dim=1)
             layer_opt = self.decoder[i](x)
 
@@ -247,8 +248,8 @@ class VAE(nn.Module):
         # Encoder
         Seg_opt = self.Seg_Net(x)           # [batch,channel=1,H,W]
         latent = self.bifurcator(Seg_opt)   # [batch,channel=2,H,W]
-        mu = latent[:,0,:,:]
-        log_var = latent[:,1,:,:]
+        mu = torch.unsqueeze(latent[:,0,:,:],dim=1)
+        log_var = torch.unsqueeze(latent[:,1,:,:],dim=1)
         
         # Reparameterize
         z = self.reparameterize(mu,log_var)
@@ -256,6 +257,6 @@ class VAE(nn.Module):
         # Decoder
         Syn_opt = self.Syn_Net(z)
         
-        return Seg_opt, Syn_opt
+        return Seg_opt, Syn_opt, mu, log_var
         
     

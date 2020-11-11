@@ -8,22 +8,22 @@ Created on Tue Nov  3 10:54:06 2020
 import sys
 sys.path.insert(0,'E:\\tools\\')
 import util
-import pickle
+import pickle,random
 import numpy as np
 import matplotlib.pyplot as plt
 
+global dataroot, msk
 dataroot = 'E:\\OCTA\\data\\R=3\\'
+# cropping template
+msk = [320,320]
 
 volume = ("fovea","fovea3","fovea5",
-               "onh","onh2","onh5",
-               "periph","periph3","periph4")
-slc_range = ([80,120],[20,60],[20,60],
-              [40,110],[35,105],[35,115],
-              [30,50],[35,70],[30,55])
-# cropping template
-msk = [384,320]
+          "periph","periph3","periph4")
+slc_range = ([90,115],[25,55],[25,55],
+              [35,48],[50,65],[40,45])
     
-def get_train_data(dataroot):
+def get_train_data(num):
+    global msk
     train_data = ()
     for i in range(len(volume)):
         vol_x = util.nii_loader(dataroot+volume[i]+'.nii.gz')
@@ -33,16 +33,22 @@ def get_train_data(dataroot):
         vol_y = vol_y[:,slc_range[i][0]:slc_range[i][1],:]
         # size of en-face slices
         H, slc, W = vol_x.shape
+        
+        # iterate over the vessel layers
         for j in range(slc):
             x = util.ImageRescale(vol_x[:,j,:],[0,255])
             y = util.ImageRescale(vol_y[:,j,:],[0,1])
-            train_data = train_data + ((x[:msk[0],:msk[1]],y[:msk[0],:msk[1]]),
-                                       (x[:msk[0],W-msk[1]:],y[:msk[0],W-msk[1]:]),
-                                       (x[H-msk[0]:,:msk[1]],y[H-msk[0]:,:msk[1]]),
-                                       (x[H-msk[0]:,W-msk[1]:],y[H-msk[0]:,W-msk[1]:]))
+            
+            # samples from single image
+            for k in range(num):
+                pseed = [random.randint(0,H-msk[0]),random.randint(0,W-msk[1])]
+                im_x = x[pseed[0]:pseed[0]+msk[0],pseed[1]:pseed[1]+msk[1]]
+                im_y = y[pseed[0]:pseed[0]+msk[0],pseed[1]:pseed[1]+msk[1]]
+                train_data = train_data+((im_x,im_y),(np.fliplr(im_x),np.fliplr(im_y)),
+                                         (np.flipud(im_x),np.flipud(im_y)),)      
     return train_data
             
-train_data = get_train_data(dataroot)
+train_data = get_train_data(10)
 
 with open(dataroot+'train_data.pickle','wb') as func:
     pickle.dump(train_data,func)

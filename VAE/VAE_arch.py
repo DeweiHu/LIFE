@@ -84,6 +84,7 @@ class R2U_Net(nn.Module):
         self.nch_enc = nch_enc
         self.nch_aug = (self.nch_in,)+self.nch_enc
         self.sigmoid = nn.Sigmoid()
+        self.dropout = nn.Dropout2d()
         
         # module list
         encoder = []
@@ -112,7 +113,8 @@ class R2U_Net(nn.Module):
         # encoder
         for i in range(len(self.nch_enc)):
             layer_opt = self.encoder[i](x)
-            x = self.td[i](layer_opt)
+            x = self.dropout(layer_opt)
+            x = self.td[i](x)
             cats.append(layer_opt)
         
         # bottom layer
@@ -120,11 +122,12 @@ class R2U_Net(nn.Module):
         
         # decoder
         for i in range(len(self.nch_enc)):
-            x = self.tu[i](layer_opt)
+            x = self.dropout(layer_opt)
+            x = self.tu[i](x)
             x = torch.cat([x,cats[-1-i]],dim=1)
             layer_opt = self.decoder[i](x)
 
-        y_pred = self.sigmoid(layer_opt)
+        y_pred = self.sigmoid(layer_opt)    # seg is in (0,1)
         return y_pred
             
     def trans_down(self, nch_in, nch_out):
@@ -229,34 +232,26 @@ class VAE(nn.Module):
         self.seg_enc = seg_enc
         self.t = t
         self.syn_enc = syn_enc
-        self.bifurcator = nn.Conv2d(in_channels = 1,
-                                    out_channels = 2,
-                                    kernel_size = 1,
-                                    stride = 1,
-                                    padding = 0)
+        self.sigmoid = nn.Sigmoid()
         # Encoder: Seg_Net, Decoder: Syn_Net
         self.Seg_Net = R2U_Net(self.seg_enc,self.t)
         self.Syn_Net = res_UNet(self.syn_enc)
         
-    def reparameterize(self, mu, log_var):
-        std = torch.exp(0.5*log_var)
-        eps = torch.randn_like(std)
-        sample = mu + (eps * std)
+    def reparameterize(self, seg):
+        eps = torch.randn_like(seg)
+#        sample = self.sigmoid(torch.log(eps)-torch.log(1-eps)+\
+#                              torch.log(seg)-torch.log(1-seg))
+        sample = self.sigmoid(eps*seg+seg)
         return sample
     
     def forward(self, x):
         # Encoder
         Seg_opt = self.Seg_Net(x)           # [batch,channel=1,H,W]
-        latent = self.bifurcator(Seg_opt)   # [batch,channel=2,H,W]
-        mu = torch.unsqueeze(latent[:,0,:,:],dim=1)
-        log_var = torch.unsqueeze(latent[:,1,:,:],dim=1)
-        
         # Reparameterize
-        z = self.reparameterize(mu,log_var)
-        
+        z = self.reparameterize(Seg_opt)
         # Decoder
         Syn_opt = self.Syn_Net(z)
         
-        return Seg_opt, Syn_opt, mu, log_var
+        return Seg_opt, Syn_opt
         
     

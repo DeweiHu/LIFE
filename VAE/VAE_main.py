@@ -21,30 +21,55 @@ import torch.optim as optim
 import torch.utils.data as Data
 from torch.optim.lr_scheduler import StepLR
 from torch.autograd import Variable
+from torch.nn import init
 
 dataroot = 'E:\\OCTA\\data\\R=3\\train_data.pickle'
 modelroot = 'E:\\Model\\'
 
-batch_size = 1
-n_epoch = 50
-learning_rate = 0.001
+batch_size = 2
+n_epoch = 100
 epoch_loss = []
 
-seg_enc = (4,16,32,64)
-syn_enc = (4,16,32,64)
+seg_enc = (8,16,32,64,64)
+syn_enc = (8,16,32,64)
 t = 3
 
-def criterion(y,y_syn,mu,log_var):
+def init_weights(net, init_type='kaiming', gain=0.02):
+    def init_func(m):
+        classname = m.__class__.__name__
+        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
+            if init_type == 'normal':
+                init.normal_(m.weight.data, 0.0, gain)
+            elif init_type == 'xavier':
+                init.xavier_normal_(m.weight.data, gain=gain)
+            elif init_type == 'kaiming':
+                init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+            elif init_type == 'orthogonal':
+                init.orthogonal_(m.weight.data, gain=gain)
+            else:
+                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
+            if hasattr(m, 'bias') and m.bias is not None:
+                init.constant_(m.bias.data, 0.0)
+        elif classname.find('BatchNorm2d') != -1:
+            init.normal_(m.weight.data, 1.0, gain)
+            init.constant_(m.bias.data, 0.0)
+
+    print('initialize network with %s' % init_type)
+    net.apply(init_func)
+    
+def criterion(y,y_syn):
     L1 = nn.L1Loss()
     L2 = nn.MSELoss()
-    KLD = -0.5*torch.sum(1+log_var-mu.pow(2)-log_var.exp())
-    return L1(y_syn,y)+L2(y_syn,y)#+0.001*KLD
+    return L1(y_syn,y),0.05*L2(y_syn,y)
     
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model = arch.VAE(seg_enc,syn_enc,t).to(device)
 
-optimizer = torch.optim.Adam(model.parameters(),lr=learning_rate)
-scheduler = StepLR(optimizer, step_size=2, gamma=0.5)
+model = arch.VAE(seg_enc,syn_enc,t).to(device)
+#model.load_state_dict(torch.load(modelroot+'VAE_2.pt'))
+#init_weights(model,'normal')
+
+optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
+scheduler = StepLR(optimizer, step_size=3, gamma=0.2)
 
 # x:[batch,n_channel,H,W], [0,255]
 # y:[batch,n_channel,H,W], [0,1]
@@ -66,6 +91,7 @@ class HQ_human_train(Data.Dataset):
 
     def __getitem__(self,idx):
         x, y = self.pair[idx]
+#        y = util.ImageRescale(y,[0,1])
         x_tensor, y_tensor = self.ToTensor(x,y)
         return x_tensor, y_tensor
 
@@ -89,20 +115,21 @@ for epoch in range(n_epoch):
         
         x = Variable(tensor_x).to(device)
         y = Variable(tensor_y).to(device)
-        y_seg,y_syn,mu,log_var = model(x)
+        y_seg,y_syn = model(x)
         
-        loss = criterion(y,y_syn,mu,log_var)
+        l1,l2 = criterion(y,y_syn)
+        loss = l1+l2
         sum_loss += loss
         
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        if step % 250 == 0:
+            print('[%d/%d][%d/%d][L1:%.4f | L2:%.4f]'%(epoch,n_epoch,
+                  step,len(train_loader),l1.item(),l2.item()))
         
-        if step % 100 == 0:
-            print('[%d/%d][%d/%d][Loss: %.4f]'%(epoch,n_epoch,
-                  step,len(train_loader),loss.item()))
-        
-        if step == len(train_loader)-1:
+        if step % 1000 == 0 and step != 0:
             seg = util.ImageRescale(y_seg[0,0,:,:].detach().cpu().numpy(),[0,255])
             syn = util.ImageRescale(y_syn[0,0,:,:].detach().cpu().numpy(),[0,255])
             im_x = util.ImageRescale(x[0,0,:,:].detach().cpu().numpy(),[0,255])
@@ -118,7 +145,8 @@ for epoch in range(n_epoch):
             plt.show()
             
     epoch_loss.append(sum_loss)
-
+    scheduler.step()
+    
 t2 = time.time()
 print('time consume: {} min'.format((t2-t1)/60))
 
@@ -127,5 +155,24 @@ plt.title('Loss vs. Epoch',fontsize=15)
 plt.plot(epoch_loss)
 plt.show()
 
+VAE_model = 'VAE_2.pt'
+torch.save(model.state_dict(),modelroot+VAE_model)
 
+#%%
+#model.load_state_dict(torch.load(modelroot+'VAE.pt'))
+#for step,(tensor_x,tensor_y) in enumerate(train_loader):
+##    model.Seg_Net.eval()
+#    
+#    x = Variable(tensor_x).to(device)
+#    y = Variable(tensor_y).to(device)
+#    y_seg = model.Seg_Net(x)
+#    
+#    if step % 10 == 0:    
+#        seg = util.ImageRescale(y_seg[0,0,:,:].detach().cpu().numpy(),[0,255])
+#        
+#        plt.figure(figsize=(6,6))
+#        plt.axis('off')
+#        plt.imshow(seg,cmap='gray')
+#        plt.show()
 
+    

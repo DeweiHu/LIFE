@@ -113,8 +113,8 @@ class R2U_Net(nn.Module):
         # encoder
         for i in range(len(self.nch_enc)):
             layer_opt = self.encoder[i](x)
-            x = self.dropout(layer_opt)
-            x = self.td[i](x)
+            layer_opt = self.dropout(layer_opt)
+            x = self.td[i](layer_opt)
             cats.append(layer_opt)
         
         # bottom layer
@@ -122,8 +122,8 @@ class R2U_Net(nn.Module):
         
         # decoder
         for i in range(len(self.nch_enc)):
-            x = self.dropout(layer_opt)
-            x = self.tu[i](x)
+            layer_opt = self.dropout(layer_opt)
+            x = self.tu[i](layer_opt)
             x = torch.cat([x,cats[-1-i]],dim=1)
             layer_opt = self.decoder[i](x)
 
@@ -232,16 +232,22 @@ class VAE(nn.Module):
         self.seg_enc = seg_enc
         self.t = t
         self.syn_enc = syn_enc
-        self.sigmoid = nn.Sigmoid()
+        self.bifurcate = nn.Conv2d(1,2,1,1,0)
+        
         # Encoder: Seg_Net, Decoder: Syn_Net
         self.Seg_Net = R2U_Net(self.seg_enc,self.t)
         self.Syn_Net = res_UNet(self.syn_enc)
         
     def reparameterize(self, seg):
-        eps = torch.randn_like(seg)
+        latent = self.bifurcate(seg)
+        mu = torch.unsqueeze(latent[:,0,:,:],dim=1)
+        log_var = torch.unsqueeze(latent[:,1,:,:],dim=1)
+        
+        std = torch.exp(0.5*log_var)
+        eps = torch.randn_like(std)
 #        sample = self.sigmoid(torch.log(eps)-torch.log(1-eps)+\
 #                              torch.log(seg)-torch.log(1-seg))
-        sample = self.sigmoid(eps*seg+seg)
+        sample = mu+(eps*std)
         return sample
     
     def forward(self, x):

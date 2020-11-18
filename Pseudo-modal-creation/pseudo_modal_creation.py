@@ -72,11 +72,11 @@ for file in os.listdir(dataroot):
         _,vol_orig = cutter(var_proj,vol)
         
         idx = file.find('_')
-        util.nii_saver(vol_orig,saveroot,'orig_{}'.format(file[idx:]))
+        util.nii_saver(vol_orig,saveroot,'orig{}'.format(file[idx:]))
         util.nii_saver(util.ImageRescale(vol_op,[0,255]),
-                       saveroot,'proj(orig)_{}'.format(file[idx:]))
+                       saveroot,'proj(orig){}'.format(file[idx:]))
         util.nii_saver(util.ImageRescale(vol_v,[0,255]),
-                       saveroot,'var_{}'.format(file[idx:]))
+                       saveroot,'var{}'.format(file[idx:]))
         util.nii_saver(util.ImageRescale(vol_vp,[0,255]),
-                       saveroot,'proj(var)_{}'.format(file[idx:]))
+                       saveroot,'proj(var){}'.format(file[idx:]))
 

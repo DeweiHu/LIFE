@@ -11,7 +11,7 @@ sys.path.insert(0,'E:\\tools\\')
 import util
 import VAE_arch as arch
 
-import pickle,time
+import pickle,time,cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -23,7 +23,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.autograd import Variable
 from torch.nn import init
 
-dataroot = 'E:\\OCTA\\data\\R=3\\train_data.pickle'
+dataroot = 'E:\\OCTA\\data\\VAE_train_data.pickle'
 modelroot = 'E:\\Model\\'
 
 batch_size = 2
@@ -31,8 +31,14 @@ n_epoch = 100
 epoch_loss = []
 
 seg_enc = (8,16,32,64,64)
-syn_enc = (8,16,32,64)
+syn_enc = (8,16,32)
 t = 3
+
+def otsu(im):
+    im_uint = cv2.normalize(src=im,dst=0,alpha=0,beta=255,
+                            norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_8U)
+    _,im_binary = cv2.threshold(im_uint,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+    return im_binary
 
 def init_weights(net, init_type='kaiming', gain=0.02):
     def init_func(m):
@@ -69,7 +75,7 @@ model = arch.VAE(seg_enc,syn_enc,t).to(device)
 #init_weights(model,'normal')
 
 optimizer = torch.optim.Adam(model.parameters(),lr=1e-3)
-scheduler = StepLR(optimizer, step_size=3, gamma=0.2)
+scheduler = StepLR(optimizer, step_size=3, gamma=0.5)
 
 # x:[batch,n_channel,H,W], [0,255]
 # y:[batch,n_channel,H,W], [0,1]
@@ -97,12 +103,6 @@ class HQ_human_train(Data.Dataset):
 
 train_loader = Data.DataLoader(dataset=HQ_human_train(dataroot),
                                batch_size=batch_size, shuffle=True)
-
-#%%
-#for step,(x,y) in enumerate(train_loader):
-#    pass
-#print(x.size())
-#print(y.size())
 
 #%% 
 print('training start...')
@@ -144,6 +144,12 @@ for epoch in range(n_epoch):
             plt.imshow(np.concatenate((top,bot),axis=0),cmap='gray')
             plt.show()
             
+            plt.figure(figsize=(12,6))
+            plt.axis('off')
+            plt.title('Segmentation',fontsize=15)
+            plt.imshow(np.concatenate((otsu(im_x),otsu(seg)),axis=1),cmap='gray')
+            plt.show()
+            
     epoch_loss.append(sum_loss)
     scheduler.step()
     
@@ -155,24 +161,33 @@ plt.title('Loss vs. Epoch',fontsize=15)
 plt.plot(epoch_loss)
 plt.show()
 
-VAE_model = 'VAE_2.pt'
+VAE_model = 'vae.pt'
 torch.save(model.state_dict(),modelroot+VAE_model)
 
 #%%
-#model.load_state_dict(torch.load(modelroot+'VAE.pt'))
+#test_model = arch.VAE(seg_enc,syn_enc,t).to(device)
+#test_model.load_state_dict(torch.load(modelroot+'VAE.pt'))
 #for step,(tensor_x,tensor_y) in enumerate(train_loader):
-##    model.Seg_Net.eval()
+#    test_model.Seg_Net.eval()
 #    
 #    x = Variable(tensor_x).to(device)
 #    y = Variable(tensor_y).to(device)
-#    y_seg = model.Seg_Net(x)
+#    y_seg = test_model.Seg_Net(x)
 #    
 #    if step % 10 == 0:    
 #        seg = util.ImageRescale(y_seg[0,0,:,:].detach().cpu().numpy(),[0,255])
+#        im_x = util.ImageRescale(tensor_x[0,0,:,:].detach().cpu().numpy(),[0,255])
+#        
+#        plt.figure(figsize=(6,6))
+#        plt.axis('off')
+#        plt.imshow(im_x,cmap='gray')
+#        plt.savefig('E:\\OCTA\\result\\x_{}.jpg'.format(step))
+#        plt.show()
 #        
 #        plt.figure(figsize=(6,6))
 #        plt.axis('off')
 #        plt.imshow(seg,cmap='gray')
+#        plt.savefig('E:\\OCTA\\result\\seg_{}.jpg'.format(step))
 #        plt.show()
 
     

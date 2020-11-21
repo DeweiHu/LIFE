@@ -12,8 +12,9 @@ import sys
 sys.path.insert(0,'E:\\tools\\')
 import util
 import numpy as np
-import os
+import os, cv2
 import matplotlib.pyplot as plt
+from PIL import Image, ImageEnhance
 
 '''
 vol: [s-bscan, en-face, f-bscan]
@@ -49,11 +50,22 @@ def cutter(vol1,vol2):
         opt1 = vol1
         opt2 = vol2[:,r:n2-r,:]
     return opt1,opt2
+
+def ContrastEnhance(im):
+    im = cv2.normalize(src=im,dst=0,alpha=0,beta=255,
+                       norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_8U)
     
+    enhancer = ImageEnhance.Contrast(Image.fromarray(im))
+    enhanced_im = enhancer.enhance(3.0)
+    
+    im_opt = cv2.normalize(src=np.array(enhanced_im),dst=0,alpha=0,beta=255,
+                       norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_32F)
+    return im_opt
+
 dataroot = 'E:\\OCTA\\data\\R=3\\'
 saveroot = 'E:\\OCTA\\data\\pre_processed\\'
 r_var = 3
-r_proj = 5
+r_proj = 7
 
 for file in os.listdir(dataroot):
     if file.startswith('AR') and file.endswith('.nii.gz'):
@@ -70,6 +82,9 @@ for file in os.listdir(dataroot):
         vol_vp,vol_v = cutter(var_proj,var)
         _,vol_op = cutter(var_proj,orig_proj)
         _,vol_orig = cutter(var_proj,vol)
+        
+        for i in range(w):
+            vol_op[:,:,i] = ContrastEnhance(vol_op[:,:,i])
         
         idx = file.find('_')
         util.nii_saver(vol_orig,saveroot,'orig{}'.format(file[idx:]))

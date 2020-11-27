@@ -6,7 +6,6 @@ Created on Thu Nov 26 20:08:05 2020
 """
 
 import sys
-sys.path.insert(0,'E:\\OCTA\\seg-VAE\\')
 sys.path.insert(0,'E:\\tools\\')
 import util
 import cv2, random
@@ -71,11 +70,11 @@ def binarize(vol,vol_seg,verbose):
 
 if __name__ == "__main__":        
     dataroot = "E:\\OCTA\\result\\"
-    vol_seg = util.nii_loader(dataroot+"vol_seg3.nii.gz")
-    vol = util.nii_loader(dataroot+"orig3.nii.gz")
+    vol_seg = util.nii_loader(dataroot+"vol_seg5.nii.gz")
+    vol = util.nii_loader(dataroot+"orig5.nii.gz")
     
     vol_base_1, vol_base_2, vol_opt = binarize(vol,vol_seg,True)
     
-    util.nii_saver(vol_opt,dataroot,'binary3.nii.gz')
-    util.nii_saver(vol_base_1,dataroot,'binary_base_1.nii.gz')
-    util.nii_saver(vol_base_2,dataroot,'binary_base_2.nii.gz')
+    util.nii_saver(vol_opt,dataroot,'binary5.nii.gz')
+    util.nii_saver(vol_base_1,dataroot,'binary5_base_1.nii.gz')
+    util.nii_saver(vol_base_2,dataroot,'binary5_base_2.nii.gz')

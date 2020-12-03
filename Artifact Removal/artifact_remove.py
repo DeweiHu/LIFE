@@ -12,14 +12,6 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-def threshold(vec,th):
-    if sum(vec) >= th:
-        opt = 1
-    else:
-        opt = 0
-    return opt
-
-
 def artifact_removal(vol,crop_range):
     # classification
     vectors = np.mean(vol,axis=0)

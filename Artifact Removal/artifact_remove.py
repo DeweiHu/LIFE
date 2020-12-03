@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Nov 13 23:59:05 2020
+Created on Thu Dec  3 00:03:59 2020
 
 @author: hudew
 """
@@ -8,8 +8,8 @@ Created on Fri Nov 13 23:59:05 2020
 import sys
 sys.path.insert(0,'E:\\tools\\')
 import util
-import numpy as np
 import os
+import numpy as np
 import matplotlib.pyplot as plt
 
 def threshold(vec,th):
@@ -19,65 +19,54 @@ def threshold(vec,th):
         opt = 0
     return opt
 
-def Artifact_Remove(vol,th,maxIntensity):
-    Ns, Nen, Nf = vol.shape
+
+def artifact_removal(vol,crop_range):
+    # classification
     vectors = np.mean(vol,axis=0)
-    l,n = vectors.shape
-    result = []
+    v = np.sum(vectors,axis=0)
+    mu = np.mean(v)
+    std = np.std(v)
+    th = mu + std
+    v_class = v > th
     
-    for i in range(n):
-        result.append(threshold(vectors[:,i],th))
+    # crop
+    vol_crop = vol[:,crop_range[0]:crop_range[1],:]
+    vol_opt = np.zeros(vol_crop.shape,dtype=np.float32)
     
-    plt.figure(figsize=(8,6))
-    plt.title('corrected slices',fontsize=15)
-    plt.plot(result)
-    plt.show()
-    
-    # define an output volume
-    vol_opt = np.zeros([Ns,Nen,Nf],dtype=np.float32)
-    
-    # normal OCTA bscans are rescaled togather 
-    n_normal = n-sum(result)
-    stack_normal = np.zeros([Ns,Nen,n_normal],dtype=np.float32)
-    
-    idx = 0
-    for i in range(Nf):
-        if result[i] == 0:
-            stack_normal[:,:,idx] = vol[:,:,i]
-            idx += 1
-    stack_normal = util.ImageRescale(stack_normal,[0,255])
-    
-    # abnormal OCTA bscans are rescaled independently
-    idx = 0
-    for i in range(Nf):
-        if result[i] == 0: 
-            vol_opt[:,:,i] = stack_normal[:,:,idx]
-            idx += 1
+    for i in range(len(v_class)):
+        if v_class[i]:
+            im_abn = vol_crop[:,:,i]
+            idx = i
+            # jump out of while loop when get a normal slice
+            while v_class[idx]:
+                idx -= 1
+            im_n = vol_crop[:,:,idx]
+            
+            # histogram matching
+            im_hm = util.hist_match(im_abn,im_n)
+            vol_opt[:,:,i] = im_hm
+            
         else:
-            vol_opt[:,:,i] = util.ImageRescale(vol[:,:,i],[0,maxIntensity])
-    return vol_opt
+            vol_opt[:,:,i] = vol_crop[:,:,i]
+    
+    return vol_crop, vol_opt
 
-# [s-Bscan, en-face, f-Bscan]
-dataroot = 'E:\\OCTA\\data\\R=3\\'
-file = 'fovea5.nii.gz'
-vol = util.nii_loader(dataroot+file)
-
-vectors = np.mean(vol,axis=0)
-plt.imshow(vectors,cmap='gray'),plt.show()
-plt.plot(np.sum(vectors,axis=0))
-
-
-#%%
-
-th = 1.4e6
-maxIntensity = 150
-
-vol_opt = Artifact_Remove(vol,th,maxIntensity)    
-util.nii_saver(vol_opt,dataroot,'AR_{}.nii.gz'.format(file[:file.find('.nii')]))
+if __name__=="__main__":
+    dataroot = 'E:\\OCTA\\data\\R=3\\'
+    saveroot = 'E:\\OCTA\\data\\AR_result\\'
+    volume = ("fovea","fovea3","fovea5")
+    slc_range = ([76,104],[13,43],[13,43])
+    
+    for file in os.listdir(dataroot):
+        for i in range(len(volume)):
+            vol = util.nii_loader(dataroot+volume[i]+'.nii.gz')
+            vol_crop,vol_opt = artifact_removal(vol,slc_range[i])
+            
+            util.nii_saver(vol_crop,saveroot,volume[i]+'_crop.nii.gz')
+            util.nii_saver(vol_opt,saveroot,volume[i]+'_AR.nii.gz')
+      
+  
+            
         
     
     
-
-
-
-

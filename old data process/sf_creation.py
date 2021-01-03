@@ -32,7 +32,7 @@ for i in range(len(volume)):
 		vol_reg[:,j-radius,:] = util.ImageRescale(tool.sf(stack_rg,temp),[0,255])
 
 	# save the volume
-	util.nii_saver(vol_non_reg,dataroot,'sf_'+volume[i]+'nii.gz')
+	util.nii_saver(vol_non_reg,dataroot,'sf_'+volume[i]+'.nii.gz')
 	util.nii_saver(vol_reg,dataroot,'sf_reg_'+volume[i]+'.nii.gz')
 	print('volume {} self-fused.'.format(volume[i]))
 
